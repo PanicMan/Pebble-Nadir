@@ -1,0 +1,47 @@
+{
+    "versionLabel": "1.0",
+    "uuid": "07af6246-e258-4c4b-8878-b3d557639aed",
+    "appKeys": {
+        "vibr": 5,
+        "inv": 1,
+        "anim": 2,
+        "datefmt": 4,
+        "sep": 3
+    },
+    "longName": "Nadir",
+    "versionCode": 1,
+    "capabilities": [
+        "configurable"
+    ],
+    "shortName": "Nadir",
+    "companyName": "PanicMan",
+    "watchapp": {
+        "watchface": true
+    },
+    "resources": {
+        "media": [
+            {
+                "menuIcon": true,
+                "type": "png",
+                "name": "IMAGE_MENU",
+                "file": "images/MenuImage.png"
+            },
+            {
+                "type": "png",
+                "name": "IMAGE_FACE",
+                "file": "images/Face.png"
+            },
+            {
+                "type": "png",
+                "name": "IMAGE_BATTERY",
+                "file": "images/Battery.png"
+            },
+            {
+                "characterRegex": "[-/0-9.:\\s]",
+                "type": "font",
+                "name": "FONT_DIGITAL_24",
+                "file": "fonts/DIGITALBOLD2.TTF"
+            }
+        ]
+    }
+}
