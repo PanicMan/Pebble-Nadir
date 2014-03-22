@@ -137,7 +137,7 @@ static void handle_tick(struct tm *tick_time, TimeUnits units_changed)
 		layer_mark_dirty(secs_layer);
 	}
 	
-	if ((tick_time->tm_hour == 0 && tick_time->tm_min == 0 && tick_time->tm_sec == 0) || units_changed == MINUTE_UNIT)
+	if (tick_time->tm_sec == 0 || units_changed == MINUTE_UNIT)
 	{
 		if(clock_is_24h_style())
 			strftime(ddmmyyyyBuffer, sizeof(ddmmyyyyBuffer), 
