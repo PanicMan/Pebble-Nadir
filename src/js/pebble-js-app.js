@@ -16,10 +16,9 @@ Pebble.addEventListener("showConfiguration", function() {
     var options = JSON.parse(window.localStorage.getItem('nadir_opt'));
     console.log("read options: " + JSON.stringify(options));
     console.log("showing configuration");
-    if (options == null) {
-        var uri = 'http://panicman.byto.de/config_nadir.html?title=Nadir';
-    } else {
-        var uri = 'http://panicman.byto.de/config_nadir.html?title=Nadir' + 
+	var uri = 'http://panicman.github.io/config_nadir.html?title=Nadir%20v1.2';
+    if (options) {
+        uri += 
 			'&inv=' + encodeURIComponent(options['inv']) + 
 			'&anim=' + encodeURIComponent(options['anim']) + 
 			'&sep=' + encodeURIComponent(options['sep']) +

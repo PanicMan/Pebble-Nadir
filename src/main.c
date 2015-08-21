@@ -1,5 +1,6 @@
 #include <pebble.h>
-	
+#include "effect_layer.h"
+
 #define TIMER_MS 100
 
 enum ConfigKeys {
