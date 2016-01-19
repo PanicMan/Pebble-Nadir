@@ -8,7 +8,8 @@ enum ConfigKeys {
 	CONFIG_KEY_ANIM=2,
 	CONFIG_KEY_SEP=3,
 	CONFIG_KEY_DATEFMT=4,
-	CONFIG_KEY_VIBR=5
+	CONFIG_KEY_VIBR=5,
+	CONFIG_KEY_SHOWSEC=6
 };
 
 typedef struct {
@@ -16,6 +17,7 @@ typedef struct {
 	bool anim;
 	bool sep;
 	bool vibr;
+	uint8_t showsec;
 	uint16_t datefmt;
 } CfgDta_t;
 
@@ -44,7 +46,7 @@ static const struct GPathInfo SECS_PATH_INFO = {
 
 GPath *hour_path, *mins_path, *secs_path, *hour2_path, *mins2_path;
 
-static const uint32_t const segments[] = {100, 100, 100};
+static const uint32_t segments[] = {100, 100, 100};
 static const VibePattern vibe_pat = {
 	.durations = segments,
 	.num_segments = ARRAY_LENGTH(segments),
@@ -55,6 +57,7 @@ Layer *hands_layer, *secs_layer;
 TextLayer* date_layer;
 InverterLayer* inv_layer;
 BitmapLayer *radio_layer, *battery_layer, *face_layer;
+static PropertyAnimation *s_prop_anim_bt, *s_prop_anim_batt;
 
 static GFont digitS;
 char hhBuffer[] = "00";
@@ -82,7 +85,7 @@ static void hands_update_proc(Layer *layer, GContext *ctx)
 	gpath_rotate_to(hour_path, angle);
 	gpath_draw_filled(ctx, hour_path);
 	gpath_draw_outline(ctx, hour_path);
-	graphics_context_set_fill_color(ctx, GColorBlack);
+	graphics_context_set_fill_color(ctx, COLOR_FALLBACK(GColorBlue, GColorBlack));
 	gpath_move_to(hour2_path, ptLin);
 	gpath_rotate_to(hour2_path, angle);
 	gpath_draw_filled(ctx, hour2_path);
@@ -97,13 +100,33 @@ static void hands_update_proc(Layer *layer, GContext *ctx)
 	gpath_rotate_to(mins_path, angle);
 	gpath_draw_filled(ctx, mins_path);
 	gpath_draw_outline(ctx, mins_path);
-	graphics_context_set_fill_color(ctx, GColorBlack);
+	graphics_context_set_fill_color(ctx, COLOR_FALLBACK(GColorGreen, GColorBlack));
 	gpath_move_to(mins2_path, ptLin);
 	gpath_rotate_to(mins2_path, angle);
 	gpath_draw_filled(ctx, mins2_path);
 
+#if defined(PBL_RECT)
 	if (CfgData.sep)
 		graphics_draw_line(ctx, GPoint(10, bounds.size.h-1), GPoint(bounds.size.w-10, bounds.size.h-1));
+#elif defined(PBL_ROUND)
+	graphics_context_set_fill_color(ctx, GColorBlack);
+
+	//Radio & Battery
+	graphics_fill_radial(ctx, GRect(-20, center.y-20, 40, 40), GOvalScaleModeFitCircle, 20, DEG_TO_TRIGANGLE(10), DEG_TO_TRIGANGLE(170));
+	graphics_fill_radial(ctx, GRect(bounds.size.w-20, center.y-20, 40, 40), GOvalScaleModeFitCircle, 20, DEG_TO_TRIGANGLE(190), DEG_TO_TRIGANGLE(350));
+	if (CfgData.sep)
+	{
+		graphics_draw_arc(ctx, GRect(-20, center.y-20, 40, 40), GOvalScaleModeFitCircle, DEG_TO_TRIGANGLE(25), DEG_TO_TRIGANGLE(155));
+		graphics_draw_arc(ctx, GRect(bounds.size.w-20, center.y-20, 40, 40), GOvalScaleModeFitCircle, DEG_TO_TRIGANGLE(205), DEG_TO_TRIGANGLE(335));
+	}
+
+	//DateTime
+	uint8_t n_bottom_margin = 26;
+	graphics_fill_radial(ctx, GRect(center.x-80, bounds.size.h-n_bottom_margin-3, 160, 160), GOvalScaleModeFitCircle, n_bottom_margin+5, DEG_TO_TRIGANGLE(320), DEG_TO_TRIGANGLE(400));
+	graphics_draw_text(ctx, ddmmyyyyBuffer, digitS, GRect(0, bounds.size.h-n_bottom_margin-5, bounds.size.w, n_bottom_margin), GTextOverflowModeWordWrap, GTextAlignmentCenter, NULL);
+	if (CfgData.sep)
+		graphics_draw_arc(ctx, GRect(center.x-80, bounds.size.h-n_bottom_margin-3, 160, 160), GOvalScaleModeFitCircle, DEG_TO_TRIGANGLE(330), DEG_TO_TRIGANGLE(390));
+#endif		
 }
 //-----------------------------------------------------------------------------------------------------------------------
 static void secs_update_proc(Layer *layer, GContext *ctx) 
@@ -127,19 +150,10 @@ static void secs_update_proc(Layer *layer, GContext *ctx)
 //-----------------------------------------------------------------------------------------------------------------------
 static void handle_tick(struct tm *tick_time, TimeUnits units_changed) 
 {
-	if (b_initialized)
-	{
-		aktHH = tick_time->tm_hour;
-		aktMM = tick_time->tm_min;
-		aktSS = tick_time->tm_sec;
-		
-		if (aktSS == 0)
-			layer_mark_dirty(hands_layer);
-		layer_mark_dirty(secs_layer);
-	}
-	
+	//Update Date
 	if (tick_time->tm_sec == 0 || units_changed == MINUTE_UNIT)
 	{
+#if defined(PBL_RECT)
 		if(clock_is_24h_style())
 			strftime(ddmmyyyyBuffer, sizeof(ddmmyyyyBuffer), 
 				CfgData.datefmt == 1 ? "%H:%M %d-%m" : 
@@ -150,8 +164,33 @@ static void handle_tick(struct tm *tick_time, TimeUnits units_changed)
 				CfgData.datefmt == 1 ? "%I:%M %d-%m" : 
 				CfgData.datefmt == 2 ? "%I:%M %d/%m" : 
 				CfgData.datefmt == 3 ? "%I:%M %m/%d" : "%I:%M %d.%m.", tick_time);
-		
+
 		text_layer_set_text(date_layer, ddmmyyyyBuffer);
+#elif defined(PBL_ROUND)
+		strftime(ddmmyyyyBuffer, sizeof(ddmmyyyyBuffer), 
+			 CfgData.datefmt == 1 ? "%d-%m" : 
+			 CfgData.datefmt == 2 ? "%d/%m" : 
+			 CfgData.datefmt == 3 ? "%m/%d" : "%d.%m.", tick_time);
+		//strcpy(ddmmyyyyBuffer, "00.00.");		
+#endif		
+	}
+	
+	//Update Time
+	if (b_initialized)
+	{
+		aktHH = tick_time->tm_hour;
+		aktMM = tick_time->tm_min;
+
+		if (tick_time->tm_sec == 0)
+		{
+			aktSS = tick_time->tm_sec;
+			layer_mark_dirty(hands_layer);
+		}
+		else if (CfgData.showsec != 0 && (tick_time->tm_sec % CfgData.showsec) == 0) 
+		{
+			aktSS = tick_time->tm_sec;
+			layer_mark_dirty(secs_layer);
+		}
 	}
 	
 	//Hourly vibrate
@@ -165,7 +204,7 @@ static void timerCallback(void *data)
 	{
 		time_t temp = time(NULL);
 		struct tm *t = localtime(&temp);
-		int16_t step_max = 20;
+		int16_t step_max = 30;
 		
 		if (step <= step_max)
 		{
@@ -217,27 +256,46 @@ static void update_configuration(void)
 	else	
 		CfgData.sep = true;
 	
-    if (persist_exists(CONFIG_KEY_DATEFMT))
-		CfgData.datefmt = (int16_t)persist_read_int(CONFIG_KEY_DATEFMT);
-	else	
-		CfgData.datefmt = 0;
-	
     if (persist_exists(CONFIG_KEY_VIBR))
 		CfgData.vibr = persist_read_bool(CONFIG_KEY_VIBR);
 	else	
 		CfgData.vibr = false;
 	
-	app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Curr Conf: inv:%d, anim:%d, sep:%d, datefmt:%d, vibr:%d",
-		CfgData.inv, CfgData.anim, CfgData.sep, CfgData.datefmt, CfgData.vibr);
+    if (persist_exists(CONFIG_KEY_SHOWSEC))
+		CfgData.showsec = (int8_t)persist_read_int(CONFIG_KEY_SHOWSEC);
+	else	
+		CfgData.showsec = 1;
+	
+    if (persist_exists(CONFIG_KEY_DATEFMT))
+		CfgData.datefmt = (int16_t)persist_read_int(CONFIG_KEY_DATEFMT);
+	else	
+		CfgData.datefmt = 0;
+	
+	app_log(APP_LOG_LEVEL_DEBUG, __FILE__, __LINE__, "Curr Conf: inv:%d, anim:%d, sep:%d, vibr:%d, showsec:%d, datefmt:%d",
+		CfgData.inv, CfgData.anim, CfgData.sep, CfgData.vibr, CfgData.showsec, CfgData.datefmt);
+
+	gbitmap_destroy(batteryAll);
+	batteryAll = gbitmap_create_with_resource(CfgData.inv ? RESOURCE_ID_IMAGE_BATTERY_INV : RESOURCE_ID_IMAGE_BATTERY);
+	
+	bitmap_layer_set_bitmap(radio_layer, NULL);
+	bitmap_layer_set_bitmap(radio_layer, gbitmap_create_as_sub_bitmap(batteryAll, GRect(110, 0, 10, 20)));
 	
 	Layer *window_layer = window_get_root_layer(window);
 	//GRect bounds = layer_get_bounds(window_get_root_layer(window));
-	window_set_background_color(window, GColorBlack);
-	text_layer_set_text_color(date_layer, GColorWhite);
+	
+	layer_remove_from_parent(secs_layer);
+	if (CfgData.showsec != 0)
+		layer_add_child(window_layer, secs_layer);
 	
 	layer_remove_from_parent(inverter_layer_get_layer(inv_layer));
 	if (CfgData.inv)
+	{
+		layer_remove_from_parent(bitmap_layer_get_layer(radio_layer));
+		layer_remove_from_parent(bitmap_layer_get_layer(battery_layer));
 		layer_add_child(window_layer, inverter_layer_get_layer(inv_layer));
+		layer_add_child(window_layer, bitmap_layer_get_layer(radio_layer));
+		layer_add_child(window_layer, bitmap_layer_get_layer(battery_layer));
+	}
 	
 	//Get a time structure so that it doesn't start blank
 	time_t temp = time(NULL);
@@ -277,14 +335,22 @@ void in_received_handler(DictionaryIterator *received, void *ctx)
 		if (akt_tuple->key == CONFIG_KEY_SEP)
 			persist_write_bool(CONFIG_KEY_SEP, strcmp(akt_tuple->value->cstring, "yes") == 0);
 		
+		if (akt_tuple->key == CONFIG_KEY_VIBR)
+			persist_write_bool(CONFIG_KEY_VIBR, strcmp(akt_tuple->value->cstring, "yes") == 0);
+		
+		if (akt_tuple->key == CONFIG_KEY_SHOWSEC)
+			persist_write_int(CONFIG_KEY_SHOWSEC, 
+				strcmp(akt_tuple->value->cstring, "nev") == 0 ? 0 : 
+				strcmp(akt_tuple->value->cstring, "05s") == 0 ? 5 : 
+				strcmp(akt_tuple->value->cstring, "10s") == 0 ? 10 : 
+				strcmp(akt_tuple->value->cstring, "15s") == 0 ? 15 : 
+				strcmp(akt_tuple->value->cstring, "30s") == 0 ? 30 : 1);
+		
 		if (akt_tuple->key == CONFIG_KEY_DATEFMT)
 			persist_write_int(CONFIG_KEY_DATEFMT, 
 				strcmp(akt_tuple->value->cstring, "fra") == 0 ? 1 : 
 				strcmp(akt_tuple->value->cstring, "eng") == 0 ? 2 : 
 				strcmp(akt_tuple->value->cstring, "usa") == 0 ? 3 : 0);
-		
-		if (akt_tuple->key == CONFIG_KEY_VIBR)
-			persist_write_bool(CONFIG_KEY_VIBR, strcmp(akt_tuple->value->cstring, "yes") == 0);
 		
 		akt_tuple = dict_read_next(received);
 	}
@@ -304,26 +370,36 @@ void in_dropped_handler(AppMessageResult reason, void *ctx)
 static void window_load(Window *window) 
 {
 	Layer *window_layer = window_get_root_layer(window);
+	window_set_background_color(window, GColorBlack);
 	GRect bounds = layer_get_bounds(window_layer);
 	
 	digitS = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_DIGITAL_24));
 	
 	// Init layers
 	bmp_face = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_FACE);
-	face_layer = bitmap_layer_create(GRect(72-34, 72-34, 68, 68));
+	GRect rc = gbitmap_get_bounds(bmp_face);
+#if defined(PBL_RECT)
+	face_layer = bitmap_layer_create(GRect(bounds.size.w/2-rc.size.w/2, bounds.size.w/2-rc.size.h/2, rc.size.w, rc.size.h));
+#elif defined(PBL_ROUND)
+	face_layer = bitmap_layer_create(GRect(bounds.size.w/2-rc.size.w/2, bounds.size.h/2-rc.size.h/2, rc.size.w, rc.size.h));
+#endif		
 	bitmap_layer_set_bitmap(face_layer, bmp_face);
 	bitmap_layer_set_background_color(face_layer, GColorClear);
 	layer_add_child(window_layer, bitmap_layer_get_layer(face_layer));
-	
+		
+#if defined(PBL_RECT)
 	hands_layer = layer_create(GRect(0, 0, bounds.size.w, bounds.size.w));
+#elif defined(PBL_ROUND)
+	hands_layer = layer_create(GRect(0, 0, bounds.size.w, bounds.size.h));
+#endif		
 	layer_set_update_proc(hands_layer, hands_update_proc);
 	layer_add_child(window_layer, hands_layer);
 	
-	secs_layer = layer_create(GRect(72-34, 72-34, 68, 68));
+	secs_layer = layer_create(layer_get_frame(bitmap_layer_get_layer(face_layer)));
 	layer_set_update_proc(secs_layer, secs_update_proc);
-	layer_add_child(window_layer, secs_layer);
 	
 	date_layer = text_layer_create(GRect(0, bounds.size.w-3, bounds.size.w, bounds.size.h-bounds.size.w+3));
+	text_layer_set_text_color(date_layer, GColorWhite);
 	text_layer_set_background_color(date_layer, GColorClear);
 	text_layer_set_text_alignment(date_layer, GTextAlignmentCenter);
 	text_layer_set_font(date_layer, digitS);
@@ -331,12 +407,12 @@ static void window_load(Window *window)
 
 	//Init battery
 	batteryAll = gbitmap_create_with_resource(RESOURCE_ID_IMAGE_BATTERY);
-	battery_layer = bitmap_layer_create(GRect(bounds.size.w-11, bounds.size.h-21, 10, 20)); 
+	battery_layer = bitmap_layer_create(GRect(bounds.size.w-11, bounds.size.h, 10, 20)); 
 	bitmap_layer_set_background_color(battery_layer, GColorClear);
 	layer_add_child(window_layer, bitmap_layer_get_layer(battery_layer));
 
 	//Init bluetooth radio
-	radio_layer = bitmap_layer_create(GRect(0, bounds.size.h-21, 10, 20));
+	radio_layer = bitmap_layer_create(GRect(1, bounds.size.h, 10, 20));
 	bitmap_layer_set_background_color(radio_layer, GColorClear);
 	bitmap_layer_set_bitmap(radio_layer, gbitmap_create_as_sub_bitmap(batteryAll, GRect(110, 0, 10, 20)));
 	layer_add_child(window_layer, bitmap_layer_get_layer(radio_layer));
@@ -350,6 +426,39 @@ static void window_load(Window *window)
 	//Start|Skip Animation
 	if (CfgData.anim)
 	{
+		//Animate Bluetooth
+		GRect rc_from = layer_get_frame(bitmap_layer_get_layer(radio_layer)), rc_to;
+#if defined(PBL_RECT)
+		rc_to = rc_from;
+		rc_to.origin.y -= rc_from.size.h+1;
+#elif defined(PBL_ROUND)
+		rc_from = GRect(-rc_from.size.w, bounds.size.h/2-rc_from.size.h/2, rc_from.size.w, rc_from.size.h);
+		rc_to = rc_from;
+		rc_to.origin.x = 4;
+#endif		
+		s_prop_anim_bt = property_animation_create_layer_frame(bitmap_layer_get_layer(radio_layer), &rc_from, &rc_to);
+		animation_set_curve((Animation*)s_prop_anim_bt, AnimationCurveEaseOut);
+		animation_set_delay((Animation*)s_prop_anim_bt, 0);
+		animation_set_duration((Animation*)s_prop_anim_bt, 1000);
+		animation_schedule((Animation*)s_prop_anim_bt);
+		
+		//Animate Battery
+		rc_from = layer_get_frame(bitmap_layer_get_layer(battery_layer));
+#if defined(PBL_RECT)
+		rc_to = rc_from;
+		rc_to.origin.y -= rc_from.size.h+1;
+#elif defined(PBL_ROUND)
+		rc_from = GRect(bounds.size.w, bounds.size.h/2-rc_from.size.h/2, rc_from.size.w, rc_from.size.h);
+		rc_to = rc_from;
+		rc_to.origin.x = bounds.size.w-rc_from.size.w-4;
+#endif		
+		s_prop_anim_batt = property_animation_create_layer_frame(bitmap_layer_get_layer(battery_layer), &rc_from, &rc_to);
+		animation_set_curve((Animation*)s_prop_anim_batt, AnimationCurveEaseOut);
+		animation_set_delay((Animation*)s_prop_anim_batt, 500);
+		animation_set_duration((Animation*)s_prop_anim_batt, 1000);
+		animation_schedule((Animation*)s_prop_anim_batt);
+		
+		//Animate Hands
 		step = aktHH = aktMM = aktSS = 0;
 		timerCallback(NULL);
 	}	

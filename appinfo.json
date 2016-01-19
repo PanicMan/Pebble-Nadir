@@ -4,38 +4,50 @@
         "datefmt": 4,
         "inv": 1,
         "sep": 3,
+        "showsec": 6,
         "vibr": 5
     },
     "capabilities": [
         "configurable"
     ],
-    "companyName": "PanicMan",
+    "companyName": "PanicMan/Jack T.",
     "longName": "Nadir",
     "projectType": "native",
     "resources": {
         "media": [
+            {
+                "file": "images/Battery_inv.png",
+                "name": "IMAGE_BATTERY_INV",
+                "targetPlatforms": [
+                    "aplite",
+                    "basalt",
+                    "chalk"
+                ],
+                "type": "bitmap"
+            },
+            {
+                "file": "images/MenuImage.png",
+                "menuIcon": true,
+                "name": "IMAGE_MENU",
+                "type": "bitmap"
+            },
+            {
+                "file": "images/Face.png",
+                "name": "IMAGE_FACE",
+                "type": "bitmap"
+            },
+            {
+                "file": "images/Battery.png",
+                "name": "IMAGE_BATTERY",
+                "targetPlatforms": null,
+                "type": "bitmap"
+            },
             {
                 "characterRegex": "[-/0-9.:\\s]",
                 "compatibility": "2.7",
                 "file": "fonts/DIGITALBOLD2.TTF",
                 "name": "FONT_DIGITAL_24",
                 "type": "font"
-            },
-            {
-                "file": "images/Battery.png",
-                "name": "IMAGE_BATTERY",
-                "type": "png"
-            },
-            {
-                "file": "images/Face.png",
-                "name": "IMAGE_FACE",
-                "type": "png"
-            },
-            {
-                "file": "images/MenuImage.png",
-                "menuIcon": true,
-                "name": "IMAGE_MENU",
-                "type": "png"
             }
         ]
     },
@@ -43,10 +55,11 @@
     "shortName": "Nadir",
     "targetPlatforms": [
         "aplite",
-        "basalt"
+        "basalt",
+        "chalk"
     ],
     "uuid": "07af6246-e258-4c4b-8878-b3d557639aed",
-    "versionLabel": "1.2",
+    "versionLabel": "2.0",
     "watchapp": {
         "watchface": true
     }
